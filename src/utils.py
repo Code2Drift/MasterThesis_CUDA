@@ -5,10 +5,24 @@ import cProfile
 import pstats
 import io
 from pathlib import Path
+import os
 
+
+"""
+Path organizing 
+"""
 def get_project_root() -> Path:
     return Path(__file__).parent.parent
 
+def PATH_back_two_levels():
+    current_path = os.getcwd()
+    two_levels_up = os.path.abspath(os.path.join(current_path, os.pardir, os.pardir))
+    return two_levels_up
+
+
+"""
+Code profiling 
+"""
 def profile(func):
     """A decorator that uses cProfile to profile a function"""
     def wrapper(*args, **kwargs):
@@ -25,20 +39,9 @@ def profile(func):
     return wrapper
 
 
-@jit(nopython=True, parallel=True)
-def HOOF_ID(magnitude, angle):
-    sum = np.zeros(9)
-    for idx in prange(magnitude.shape[0]):  # for each flow map, i.e. for each image pair
-        for mag, ang in zip(magnitude[idx].reshape(-1), angle[idx].reshape(-1)):
-            if ang >= 360:
-                ang = ang - 360  # Make sure angles are within [0, 360)
-            bin_idx = int( ang // 45 )
-            sum[bin_idx] += mag
-    rounded_sum = np.round(sum[0:8], 1)
-
-    return rounded_sum
-
-
+"""
+Image / Frame Processing 
+"""
 #@profile
 def show_frames(frame_num, cap, resolution):
     if not cap.isOpened():
@@ -62,6 +65,55 @@ def resize_frame(frame, resolution):
     frame_width, frame_height = tuple_resolution
     frame_resized = cv.resize(frame, (frame_width, frame_height), interpolation=cv.INTER_AREA)
     return frame_resized
+
+def check_frame(vid_path, frame_num):
+    cap = cv.VideoCapture(vid_path)
+    cap.set(cv.CAP_PROP_POS_FRAMES, frame_num)
+    success, frame = cap.read()
+    if not success:
+        print("failed to properly read frames")
+    return frame
+
+
+
+"""
+Optical Flow Block
+"""
+@jit(nopython=True, parallel=True)
+def HOOF_sum(magnitude, angle):
+    sum = np.zeros(9)
+    for idx in prange(magnitude.shape[0]):  # for each flow map, i.e. for each image pair
+        for mag, ang in zip(magnitude[idx].reshape(-1), angle[idx].reshape(-1)):
+            if ang >= 360:
+                ang = ang - 360  # Make sure angles are within [0, 360)
+            bin_idx = int( ang // 45 )
+            sum[bin_idx] += mag
+    rounded_sum = np.round(sum[0:8], 1)
+
+    return rounded_sum
+
+@jit(nopython=True, parallel=True)
+def HOOF_avg(magnitude, angle):
+    sum = np.zeros(9)  # Array to store the sum of magnitudes for each bin
+    count = np.zeros(9)  # Array to store the count of elements in each bin
+
+    for idx in prange(magnitude.shape[0]):  # for each flow map, i.e., for each image pair
+        for mag, ang in zip(magnitude[idx].reshape(-1), angle[idx].reshape(-1)):
+            if ang >= 360:
+                ang = ang - 360  # Make sure angles are within [0, 360)
+            bin_idx = int(ang // 45)
+            sum[bin_idx] += mag
+            count[bin_idx] += 1
+
+    # Calculate the average for each bin, handle division by zero
+    average = np.zeros(9)
+    for i in range(9):
+        if count[i] > 0:
+            average[i] = sum[i] / count[i]
+
+    rounded_average = np.round(average[0:8], 1)
+
+    return rounded_average
 
 #@profile
 def INIT_DenseOF(firstFrame, secondFrame):
@@ -89,7 +141,6 @@ def Oneline_OF(first_frame, second_frame):
 
     return GR_firstFrame, GR_secondFrame, flow
 
-
 #@profile
 def VIZ_OF_DENSE(flow, frame_2):
     mag, ang = cv.cartToPolar(flow[:, :, 0], flow[:, :, 1], angleInDegrees=True)
@@ -107,34 +158,6 @@ def VIZ_OF_DENSE(flow, frame_2):
 def cut_OF(ORG_OF_frame, point_1, point_2):
     mask = np.zeros_like(ORG_OF_frame)
     mask[point_1[1]:point_2[1], point_1[0]:point_2[0]] = 1
-    OF_cut = ORG_OF_frame * mask
-    return OF_cut
-
-def cut_ndarray(frame, point_1, point_2):
-    x1, y1 = point_1
-    x2, y2 = point_2
-
-    # Ensure coordinates are within frame bounds
-    height, width = frame.shape[:2]
-    x1, x2 = max(0, x1), min(width, x2)
-    y1, y2 = max(0, y1), min(height, y2)
-
-    # Slice the frame to get the ROI
-    frame_cut = frame[y1:y2, x1:x2]
-    return frame_cut
-
-
-def corrected_CUT_OF(ORG_OF_frame, point_1, point_2):
-    height, width = ORG_OF_frame.shape[:2]
-    x1, y1 = max(0, min(width, point_1[0])), max(0, min(height, point_1[1]))
-    x2, y2 = max(0, min(width, point_2[0])), max(0, min(height, point_2[1]))
-
-    # Create a mask with zeros
-    mask = np.zeros_like(ORG_OF_frame, dtype=np.uint8)
-    # Set the ROI to 1
-    mask[y1:y2, x1:x2] = 1
-
-    # Apply the mask to the optical flow frame
     OF_cut = ORG_OF_frame * mask
     return OF_cut
 
@@ -159,14 +182,10 @@ def cut_OF_cuda(OF_frame, point_1, point_2):
     cv.cuda.multiply(OF_frame, mask, OF_cut)
     return OF_cut
 
-def check_frame(vid_path, frame_num):
-    cap = cv.VideoCapture(vid_path)
-    cap.set(cv.CAP_PROP_POS_FRAMES, frame_num)
-    success, frame = cap.read()
-    if not success:
-        print("failed to properly read frames")
-    return frame
 
+"""
+Data labeling: EE-Assessment and data labels 
+"""
 def draw_lane_area(annotated_frame):
     poly_1 = np.array([[118, 200], [148, 190], [155, 450], [67, 450]])
     poly_2 = np.array([[250, 150], [411, 130], [425, 135], [255, 160]])
@@ -204,10 +223,3 @@ def data_labeling(path):
     vid_label = path.split('\\')[-1].split('.')[0]
 
     return vid_label
-
-"""
-TODO:
-
-1. 
-
-"""
