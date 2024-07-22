@@ -15,4 +15,4 @@ processing_ratio = 60 / avg_fps
 
 ### calculation
 total_time = video_number * avg_video_time * processing_ratio / second2hour
-print(f"Total hours needed to process {video_number} data: {round(total_time, 2)} hrs")
+print(f"Total hours needed to process {video_number} video data: {round(total_time, 2)} hrs")

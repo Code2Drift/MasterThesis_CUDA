@@ -115,6 +115,33 @@ def HOOF_avg(magnitude, angle):
 
     return rounded_average
 
+
+@jit(nopython=True, parallel=True, fastmath=True)
+def HOOF_sum_experimental(magnitude, angle):
+    bins = np.array([0, 1, 2, 3, 4, 5, 6, 7, 0])
+    bin_ranges = np.array([45, 90, 135, 180, 225, 270, 315, 360])
+
+    sum_bins = np.zeros(9)
+
+    for idx in prange(magnitude.shape[0]):  # for each flow map, i.e. for each image pair
+        mags = magnitude[idx].reshape(-1)
+        angs = angle[idx].reshape(-1)
+
+        for i in range(mags.size):
+            mag = mags[i]
+            ang = angs[i]
+
+            if ang >= 360:
+                ang -= 360  # Ensure angles are within [0, 360)
+
+            # Find the appropriate bin
+            bin_idx = np.searchsorted(bin_ranges, ang)
+            sum_bins[bin_idx] += mag
+
+    rounded_sum = np.round(sum_bins[:8], 1)
+
+    return rounded_sum
+
 #@profile
 def INIT_DenseOF(firstFrame, secondFrame):
     GR_firstFrame = cv.cvtColor(firstFrame, cv.COLOR_BGR2GRAY)

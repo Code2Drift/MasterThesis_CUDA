@@ -16,7 +16,8 @@ main_path = utils.PATH_back_two_levels()
 ''' 
 Video Configuration 
 '''
-vid_path = r'E:\01_Programming\Py\MasterThesis_CUDA\test_dataset\single_file\NT-70-40.mp4'
+#vid_path = r'E:\01_Programming\Py\MasterThesis_CUDA\test_dataset\single_file\NT-70-40.mp4'
+vid_path = r"E:\01_Programming\Py\MasterThesis_CUDA\test_dataset\single_file\NT-36-56.mp4"
 print(vid_path)
 cap = cv.VideoCapture(vid_path)
 resolution = (854, 480)
@@ -45,10 +46,12 @@ polys = [poly_1, poly_2, poly_3, poly_4]
 """
 Calculate Processing Time
 """
+time_full_runtime = []
 time_fullprocess = []
 avg_fps = []
 time_preprocessing = []
 time_opflow = []
+time_orgflow = []
 time_EE_assessment = []
 time_labeling = []
 time_yolo_process = []
@@ -56,7 +59,7 @@ time_yolo_process = []
 def list_average(list):
     return round(sum(list) / len(list), 5)
 
-
+start_runtime = time.time()
 
 '''
 Tracking Information
@@ -214,13 +217,13 @@ else:
                     start_OF_time = time.time()
                     # create optical flow instance
                     cuda_flow = cv.cuda_FarnebackOpticalFlow.create(
-                        5,          # num levels
+                        10,          # num levels, prev = 5
                         0.5,        # pyramid scale
-                        False,      # Fast pyramid
+                        True,       # Fast pyramid
                         15,         # winSize
-                        10,         # numIters
+                        10,         # numIters, prev= 10
                         5,          # polyN
-                        1.1,        # PolySigma
+                        1.1,        # PolySigma, prev =1.1
                         0,          # flags
                     )
 
@@ -243,14 +246,22 @@ else:
 
                     ROI_ang = utils.cut_OF(angle, pt_1, pt_2)
                     ROI_mag = utils.cut_OF(mag_flow, pt_1, pt_2)
-
-                    histogram_bins = utils.HOOF_sum(ROI_mag, ROI_ang)
-                    track_hist[track_id]['OF_mag'].append(histogram_bins)
-
                     end_OF_time = time.time()
                     time_opflow.append(end_OF_time - start_OF_time)
 
-            #init_frame = current_frame
+                    ### Oragnizing flow
+                    #histogram_bins = utils.HOOF_sum(ROI_mag, ROI_ang)
+                    start_org_flow = time.time()
+
+                    histogram_bins = utils.HOOF_sum_experimental(ROI_mag, ROI_ang)
+                    track_hist[track_id]['OF_mag'].append(histogram_bins)
+
+                    end_org_flow = time.time()
+                    time_orgflow.append(end_org_flow - start_org_flow)
+
+
+
+            init_frame = current_frame
             CUDA_frame_prev = CUDA_frame_curr
 
             end = time.time()
@@ -289,21 +300,25 @@ for track_id in track_hist.keys():
 end_labeling_process = time.time()
 time_labeling.append(end_labeling_process - start_labeling_process)
 
+end_runtime = time.time()
+time_full_runtime.append(end_runtime - start_runtime)
 
 """
 serialize result
 """
-# with open(r'E:\01_Programming\Py\MasterThesis_CUDA\test_dataset\dump_file\cuda_tracking_home2.pickle', 'wb') as file:
+# with open(r'E:\01_Programming\Py\MasterThesis_CUDA\test_dataset\dump_file\cuda_tracking_home_experimental.pickle', 'wb') as file:
 #     pickle.dump(track_hist, file)
 
 """
 Check processing time 
 """
 dataframe_processing = pd.DataFrame({
+    'full runtime': time_full_runtime,
     'full process': list_average(time_fullprocess),
     'avg fps': list_average(avg_fps),
     'preprocessing': list_average(time_preprocessing),
     'opflow': list_average(time_opflow),
+    'org_opflow': list_average(time_orgflow),
     'EE_assessment': list_average(time_EE_assessment),
     'yolo processing': list_average(time_yolo_process),
     'labeling': time_labeling
