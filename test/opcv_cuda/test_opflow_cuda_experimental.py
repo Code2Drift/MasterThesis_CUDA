@@ -16,8 +16,8 @@ main_path = utils.PATH_back_two_levels()
 ''' 
 Video Configuration 
 '''
-#vid_path = r'E:\01_Programming\Py\MasterThesis_CUDA\test_dataset\single_file\NT-70-40.mp4'
-vid_path = r"E:\01_Programming\Py\MasterThesis_CUDA\test_dataset\single_file\NT-36-56.mp4"
+vid_path = r'E:\01_Programming\Py\MasterThesis_CUDA\test_dataset\single_file\NT-70-40.mp4'
+# vid_path = r"E:\01_Programming\Py\MasterThesis_CUDA\test_dataset\single_file\NT-36-56.mp4"
 print(vid_path)
 cap = cv.VideoCapture(vid_path)
 resolution = (854, 480)
@@ -306,8 +306,8 @@ time_full_runtime.append(end_runtime - start_runtime)
 """
 serialize result
 """
-# with open(r'E:\01_Programming\Py\MasterThesis_CUDA\test_dataset\dump_file\cuda_tracking_home_experimental.pickle', 'wb') as file:
-#     pickle.dump(track_hist, file)
+with open(r'E:\01_Programming\Py\MasterThesis_CUDA\test_dataset\dump_file\cuda_tracking_home_experimental2.pickle', 'wb') as file:
+    pickle.dump(track_hist, file)
 
 """
 Check processing time 
