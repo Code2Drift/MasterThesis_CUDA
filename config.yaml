@@ -1,0 +1,14 @@
+main_path:
+  Home: "E:/01_Programming/Py/MasterThesis_CUDA/"
+  Work: "under construction"
+
+YOLO:
+  yolo8_m  : "yolo_models/yolov8m.pt"
+  yolo8_l  : "yolo_models/yolov8l.pt"
+  yolo8_seg: "yolo_models/yolov8seg.pt"
+
+test_data:
+  normal: "test_dataset/single_file/NT-70-40.mp4"
+  crash: "test_dataset/single_file/50-40.mp4"
+  near_miss: "test_dataset/single_file/40-28.mp4"
+  dump_target: "E:/01_Programming/Py/MasterThesis_CUDA/test_dataset/dump_file/"

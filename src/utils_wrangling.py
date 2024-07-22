@@ -97,3 +97,8 @@ def process_to_dataframe(load_tracking, processtarget_path, ):
         final_df = pd.concat([final_df, concated_df], ignore_index=True)
 
     final_df.to_csv(r'E:\01_Programming\Py\Masterarbeit_BeamNG\data_extract\YoFlow_res\processed_df.csv', index=False)
+
+def deserialize_data(load_path):
+    with open(load_path, 'rb') as file:
+        load_file = pickle.load(file)
+    return load_file

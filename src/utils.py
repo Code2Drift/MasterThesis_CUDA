@@ -6,6 +6,9 @@ import pstats
 import io
 from pathlib import Path
 import os
+import dill as pickle
+from collections import defaultdict
+
 
 
 """
@@ -77,7 +80,7 @@ def check_frame(vid_path, frame_num):
 
 
 """
-Optical Flow Block
+Optical Flow Block Histogramm
 """
 @jit(nopython=True, parallel=True)
 def HOOF_sum(magnitude, angle):
@@ -118,7 +121,6 @@ def HOOF_avg(magnitude, angle):
 
 @jit(nopython=True, parallel=True, fastmath=True)
 def HOOF_sum_experimental(magnitude, angle):
-    bins = np.array([0, 1, 2, 3, 4, 5, 6, 7, 0])
     bin_ranges = np.array([45, 90, 135, 180, 225, 270, 315, 360])
 
     sum_bins = np.zeros(9)
@@ -141,6 +143,81 @@ def HOOF_sum_experimental(magnitude, angle):
     rounded_sum = np.round(sum_bins[:8], 1)
 
     return rounded_sum
+
+
+@jit(nopython=True, parallel=True)
+def HOOF_median(magnitude, angle):
+    num_bins = 8
+    bins = np.zeros((num_bins, magnitude.shape[0] * magnitude.shape[1]), dtype=np.float32)
+    bin_counts = np.zeros(num_bins, dtype=np.int32)
+
+    for idx in prange(magnitude.shape[0]):  # for each flow map, i.e. for each image pair
+        mags = magnitude[idx].reshape(-1)
+        angs = angle[idx].reshape(-1)
+
+        for mag, ang in zip(mags, angs):
+            if ang >= 360:
+                ang = ang - 360  # Make sure angles are within [0, 360)
+            bin_idx = int(ang // 45)
+            bins[bin_idx, bin_counts[bin_idx]] = mag
+            bin_counts[bin_idx] += 1
+
+    # Compute median for each bin
+    medians = np.zeros(num_bins)
+    for i in range(num_bins):
+        if bin_counts[i] > 0:
+            medians[i] = np.median(bins[i, :bin_counts[i]])
+        else:
+            medians[i] = 0.0
+
+    rounded_medians = np.round(medians, 1)
+
+    return rounded_medians
+
+"""
+Optical Flow Calculation
+"""
+def cuda_opflow(cuda_prev, cuda_current, pt_1, pt_2):
+
+    cuda_flow = cv.cuda_FarnebackOpticalFlow.create(
+        10,  # num levels, prev = 5
+        0.5,  # pyramid scale
+        True,  # Fast pyramid
+        15,  # winSize
+        10,  # numIters, prev= 10
+        5,  # polyN
+        1.1,  # PolySigma, prev =1.1
+        0,  # flags
+    )
+
+    cuda_flow = cv.cuda_FarnebackOpticalFlow.calc(
+        cuda_flow, cuda_prev, cuda_current, None,
+    )
+
+    cuda_flow_x = cv.cuda_GpuMat(cuda_flow.size(), cv.CV_32FC1)
+    cuda_flow_y = cv.cuda_GpuMat(cuda_flow.size(), cv.CV_32FC1)
+    cv.cuda.split(cuda_flow, [cuda_flow_x, cuda_flow_y])
+
+    cuda_mag, cuda_ang = cv.cuda.cartToPolar(
+        cuda_flow_x, cuda_flow_y, angleInDegrees=True
+    )
+
+    angle = cuda_ang.download()
+    mag_flow = cuda_mag.download()
+
+    ROI_ang = cut_OF(angle, pt_1, pt_2)
+    ROI_mag = cut_OF(mag_flow, pt_1, pt_2)
+
+    return ROI_mag, ROI_ang
+
+
+def send2cuda(frame):
+    cuda_frame = cv.cuda_GpuMat()
+    cuda_frame.upload(frame)
+    cuda_frame = cv.cuda.resize(cuda_frame, (854, 480))
+    cuda_frame = cv.cuda.cvtColor(cuda_frame, cv.COLOR_BGR2GRAY)
+
+    return cuda_frame
 
 #@profile
 def INIT_DenseOF(firstFrame, secondFrame):
@@ -188,26 +265,6 @@ def cut_OF(ORG_OF_frame, point_1, point_2):
     OF_cut = ORG_OF_frame * mask
     return OF_cut
 
-def cut_OF_cuda(OF_frame, point_1, point_2):
-    # Ensure points are integers and within frame bounds
-    height, width = OF_frame.size()
-    x1, y1 = max(0, min(width, point_1[0])), max(0, min(height, point_1[1]))
-    x2, y2 = max(0, min(width, point_2[0])), max(0, min(height, point_2[1]))
-
-    # Create a mask with zeros and set the ROI to 1
-    mask = cv.cuda_GpuMat((height, width), cv.CV_8UC1)
-    mask.setTo(0)
-    roi = mask.rowRange(y1, y2).colRange(x1, x2)
-    roi.setTo(1)
-
-
-    # Ensure mask is of the same type as OF_frame
-    mask = mask.convertTo(OF_frame.type())
-
-    # Apply the mask to the optical flow frame
-    OF_cut = cv.cuda_GpuMat(OF_frame.size(), OF_frame.type())
-    cv.cuda.multiply(OF_frame, mask, OF_cut)
-    return OF_cut
 
 
 """
@@ -247,6 +304,56 @@ def check_center_location(polygon, point):
 
 def data_labeling(path):
 
-    vid_label = path.split('\\')[-1].split('.')[0]
+    vid_label = path.split('/')[-1].split('.')[0]
 
-    return vid_label
+    return str(vid_label)
+
+def serialize_data(object, pickle_file_name, test_path):
+    with open(os.path.join(test_path, pickle_file_name), 'wb') as file:
+        pickle.dump(object, file)
+
+def load_defaultdict():
+    default_dictionary = defaultdict(lambda: {
+        'Frame': [],
+        'Entry': False,
+        'Entry_point': None,
+        'Exit': False,
+        'Exit_point': None,
+        'OF_mag': [],
+        'is_crash?': False,
+        'label': [],
+        'last_poly': None
+    })
+
+    return default_dictionary
+
+def load_EE_params():
+    poly_1 = np.array([[118, 200], [148, 190], [155, 450], [67, 450]])  ## left lane
+    poly_2 = np.array([[250, 150], [411, 130], [425, 135], [255, 160]])  ## upper lane
+    poly_3 = np.array([[520, 135], [530, 130], [730, 190], [727, 200]])  ## right lane
+    poly_4 = np.array([[850, 280], [850, 475], [650, 475]])  ## lower lane
+
+    polys = [poly_1, poly_2, poly_3, poly_4]
+
+    return polys
+
+def EE_Assessment(polygones, center_point, default_dict, vehicle_id):
+    for idx, polygon in enumerate(polygones):
+        # Check if the object's center point is inside the polygon
+        if check_center_location(polygon, center_point):
+            tracking_info = default_dict[vehicle_id]
+
+            # Initialize entry point if not already set
+            if not tracking_info.get('Entry', False):
+                tracking_info['Entry_point'] = idx + 1
+                tracking_info['Entry'] = True
+                tracking_info['last_poly'] = idx
+            else:
+                # Update exit point if the polygon is different from the last encountered
+                last_poly = tracking_info.get('last_poly')
+                if last_poly is not None and last_poly != idx:
+                    tracking_info['Exit_point'] = idx + 1
+                    tracking_info['Exit'] = True
+
+                    # Reset last_poly if no further tracking is needed (optional)
+                    tracking_info['last_poly'] = None

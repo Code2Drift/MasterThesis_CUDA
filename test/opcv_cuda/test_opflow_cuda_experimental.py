@@ -1,3 +1,5 @@
+import os
+from pathlib import Path
 import cv2 as cv
 import numpy as np
 from ultralytics import YOLO
@@ -7,40 +9,50 @@ from src import utils
 import dill as pickle
 import pandas as pd
 pd.set_option('display.max_columns', 500)
+import yaml
 
 """
 Path Configuration
 """
-main_path = utils.PATH_back_two_levels()
+
+main_path = Path(__file__).parent.parent.parent.absolute()
+config_path = os.path.join(main_path, 'config.yaml')
+
+with open(config_path, "r") as file:
+    config = yaml.safe_load(file)
+
+## main path
+main_path = config['main_path']['Home']
+dump_path = config['test_data']['dump_target']
+
+## assign video path
+video_path = config['test_data']['normal']
+video_path = os.path.join(main_path, video_path)
+
+## assign yolo detector path
+yolo_models = config['YOLO']['yolo8_m']
+yolo_models = os.path.join(main_path, yolo_models)
+
 
 ''' 
 Video Configuration 
 '''
-vid_path = r'E:\01_Programming\Py\MasterThesis_CUDA\test_dataset\single_file\NT-70-40.mp4'
-# vid_path = r"E:\01_Programming\Py\MasterThesis_CUDA\test_dataset\single_file\NT-36-56.mp4"
-print(vid_path)
-cap = cv.VideoCapture(vid_path)
+cap = cv.VideoCapture(video_path)
+status, frame = cap.read()
 resolution = (854, 480)
 
 
 ''' 
 YOLO Configuration 
 '''
-yolov8m_path = r'E:\01_Programming\Py\MasterThesis_CUDA\yolo_models\yolov8m.pt'
-print(yolov8m_path)
-model = YOLO(yolov8m_path)
+model = YOLO(yolo_models)
 model.to('cuda')
 
 
 '''
 Entry Exit Intialization Params
 '''
-poly_1 = np.array([[118, 200], [148, 190], [155, 450], [67, 450]])   ## left lane
-poly_2 = np.array([[250, 150], [411, 130], [425, 135], [255, 160]])  ## upper lane
-poly_3 = np.array([[520, 135], [530, 130], [730, 190], [727, 200]])  ## right lane
-poly_4 = np.array([[850, 280], [850, 475], [650, 475]])              ## lower lane
-
-polys = [poly_1, poly_2, poly_3, poly_4]
+polys = utils.load_EE_params()
 
 
 """
@@ -65,19 +77,7 @@ start_runtime = time.time()
 Tracking Information
 '''
 frame_count = 0
-track_hist = defaultdict(lambda: {
-    'Frame': [],
-    'Entry': False,
-    'Entry_point': None,
-    'Exit': False,
-    'Exit_point': None,
-    'OF_mag': [],
-    'is_crash?': False,
-    'label': [],
-    'last_poly': None
-
-    })
-
+track_hist = utils.load_defaultdict()
 
 
 """ Initator FRAMES """
@@ -95,10 +95,7 @@ else:
         init_frame = utils.resize_frame(init_frame, 480)
 
         """ CUDA BLOCK """
-        CUDA_frame_prev = cv.cuda_GpuMat()
-        CUDA_frame_prev.upload(init_frame)
-        CUDA_frame_prev = cv.cuda.resize(CUDA_frame_prev, resolution)
-        CUDA_frame_prev = cv.cuda.cvtColor(CUDA_frame_prev, cv.COLOR_BGR2GRAY)
+        CUDA_frame_prev = utils.send2cuda(init_frame)
 
 
 
@@ -121,10 +118,8 @@ else:
             frame_count += 1
 
             """ Pre-Processing """
-            CUDA_frame_curr = cv.cuda_GpuMat()
-            CUDA_frame_curr.upload(current_frame)
-            CUDA_frame_curr = cv.cuda.resize(CUDA_frame_curr, resolution)
-            CUDA_frame_curr = cv.cuda.cvtColor(CUDA_frame_curr, cv.COLOR_BGR2GRAY)
+            CUDA_frame_curr = utils.send2cuda(current_frame)
+
             ## calc time preprocess
             end_preprocessing = time.time()
             time_preprocessing.append(end_preprocessing - start_preprocessing)
@@ -165,87 +160,76 @@ else:
 
                     ''' Intersection Entry Exit Assessment '''
 
-                    ### Ver.1
-                    # for idx, poly in enumerate(polys):
-                    #     ## check if object center point is inside polygone
-                    #     if utils.check_center_location(poly, center_point):
-                    #         if not track_hist[track_id]['Entry']:
-                    #             ## Set the first polygon index as the entry point
-                    #             track_hist[track_id]['Entry_point'] = idx + 1
-                    #             track_hist[track_id]['Entry'] = True
-                    #             track_hist[track_id]['last_poly'] = idx
-                    #         else:
-                    #             ## If a new polygon is detected and it's different from the entry polygon
-                    #             if track_hist[track_id]['last_poly'] is not None and track_hist[track_id][
-                    #                 'last_poly'] != idx:
-                    #                 track_hist[track_id]['Exit_point'] = idx + 1
-                    #                 track_hist[track_id]['Exit'] = True
-                    #                 # Optionally reset last_poly if no further tracking is needed
-                    #                 track_hist[track_id]['last_poly'] = None
-
-
                     ### Ver. 2 EE-Assessment
                     start_ee_ass = time.time()
-                    for idx, polygon in enumerate(polys):
-                        # Check if the object's center point is inside the polygon
-                        if utils.check_center_location(polygon, center_point):
-                            tracking_info = track_hist[track_id]
+                    # for idx, polygon in enumerate(polys):
+                    #     # Check if the object's center point is inside the polygon
+                    #     if utils.check_center_location(polygon, center_point):
+                    #         tracking_info = track_hist[track_id]
+                    #
+                    #         # Initialize entry point if not already set
+                    #         if not tracking_info.get('Entry', False):
+                    #             tracking_info['Entry_point'] = idx + 1
+                    #             tracking_info['Entry'] = True
+                    #             tracking_info['last_poly'] = idx
+                    #         else:
+                    #             # Update exit point if the polygon is different from the last encountered
+                    #             last_poly = tracking_info.get('last_poly')
+                    #             if last_poly is not None and last_poly != idx:
+                    #                 tracking_info['Exit_point'] = idx + 1
+                    #                 tracking_info['Exit'] = True
+                    #                 # Reset last_poly if no further tracking is needed (optional)
+                    #                 tracking_info['last_poly'] = None
 
-                            # Initialize entry point if not already set
-                            if not tracking_info.get('Entry', False):
-                                tracking_info['Entry_point'] = idx + 1
-                                tracking_info['Entry'] = True
-                                tracking_info['last_poly'] = idx
-                            else:
-                                # Update exit point if the polygon is different from the last encountered
-                                last_poly = tracking_info.get('last_poly')
-                                if last_poly is not None and last_poly != idx:
-                                    tracking_info['Exit_point'] = idx + 1
-                                    tracking_info['Exit'] = True
-                                    # Reset last_poly if no further tracking is needed (optional)
-                                    tracking_info['last_poly'] = None
+                    utils.EE_Assessment(polys, center_point, default_dict=track_hist,
+                                        vehicle_id=track_id)
 
                     # calc EE processing time
                     end_ee_ass = time.time()
                     time_EE_assessment.append(end_ee_ass - start_ee_ass)
 
 
-
-
                     """ Optical Flow """
 
                     start_OF_time = time.time()
+
+                    ROI_mag, ROI_ang = utils.cuda_opflow(
+                        cuda_prev   =CUDA_frame_prev,
+                        cuda_current=CUDA_frame_curr,
+                        pt_1=pt_1,
+                        pt_2=pt_2
+                    )
                     # create optical flow instance
-                    cuda_flow = cv.cuda_FarnebackOpticalFlow.create(
-                        10,          # num levels, prev = 5
-                        0.5,        # pyramid scale
-                        True,       # Fast pyramid
-                        15,         # winSize
-                        10,         # numIters, prev= 10
-                        5,          # polyN
-                        1.1,        # PolySigma, prev =1.1
-                        0,          # flags
-                    )
-
-
-                    # calculate optical flow
-                    cuda_flow = cv.cuda_FarnebackOpticalFlow.calc(
-                        cuda_flow, CUDA_frame_prev, CUDA_frame_curr, None,
-                    )
-
-                    cuda_flow_x = cv.cuda_GpuMat(cuda_flow.size(), cv.CV_32FC1)
-                    cuda_flow_y = cv.cuda_GpuMat(cuda_flow.size(), cv.CV_32FC1)
-                    cv.cuda.split(cuda_flow, [cuda_flow_x, cuda_flow_y])
-
-                    cuda_mag, cuda_ang = cv.cuda.cartToPolar(
-                        cuda_flow_x, cuda_flow_y, angleInDegrees=True
-                    )
-
-                    angle = cuda_ang.download()
-                    mag_flow = cuda_mag.download()
-
-                    ROI_ang = utils.cut_OF(angle, pt_1, pt_2)
-                    ROI_mag = utils.cut_OF(mag_flow, pt_1, pt_2)
+                    # cuda_flow = cv.cuda_FarnebackOpticalFlow.create(
+                    #     10,          # num levels, prev = 5
+                    #     0.5,        # pyramid scale
+                    #     True,       # Fast pyramid
+                    #     15,         # winSize
+                    #     10,         # numIters, prev= 10
+                    #     5,          # polyN
+                    #     1.1,        # PolySigma, prev =1.1
+                    #     0,          # flags
+                    # )
+                    #
+                    #
+                    # # calculate optical flow
+                    # cuda_flow = cv.cuda_FarnebackOpticalFlow.calc(
+                    #     cuda_flow, CUDA_frame_prev, CUDA_frame_curr, None,
+                    # )
+                    #
+                    # cuda_flow_x = cv.cuda_GpuMat(cuda_flow.size(), cv.CV_32FC1)
+                    # cuda_flow_y = cv.cuda_GpuMat(cuda_flow.size(), cv.CV_32FC1)
+                    # cv.cuda.split(cuda_flow, [cuda_flow_x, cuda_flow_y])
+                    #
+                    # cuda_mag, cuda_ang = cv.cuda.cartToPolar(
+                    #     cuda_flow_x, cuda_flow_y, angleInDegrees=True
+                    # )
+                    #
+                    # angle = cuda_ang.download()
+                    # mag_flow = cuda_mag.download()
+                    #
+                    # ROI_ang = utils.cut_OF(angle, pt_1, pt_2)
+                    # ROI_mag = utils.cut_OF(mag_flow, pt_1, pt_2)
                     end_OF_time = time.time()
                     time_opflow.append(end_OF_time - start_OF_time)
 
@@ -253,7 +237,8 @@ else:
                     #histogram_bins = utils.HOOF_sum(ROI_mag, ROI_ang)
                     start_org_flow = time.time()
 
-                    histogram_bins = utils.HOOF_sum_experimental(ROI_mag, ROI_ang)
+                    # histogram_bins = utils.HOOF_sum_experimental(ROI_mag, ROI_ang)
+                    histogram_bins = utils.HOOF_median(ROI_mag, ROI_ang)
                     track_hist[track_id]['OF_mag'].append(histogram_bins)
 
                     end_org_flow = time.time()
@@ -272,8 +257,8 @@ else:
 
 
             # visualization Frame-by-Frame plot of image
-            # cv.putText(YOLO_ANNOT, f"{fps:.2f} FPS", (440, 240), cv.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 0), 2)
-            # cv.imshow("Cuda Frame", YOLO_ANNOT)
+            cv.putText(YOLO_ANNOT, f"{fps:.2f} FPS", (440, 240), cv.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 0), 2)
+            cv.imshow("Cuda Frame", YOLO_ANNOT)
 
             if cv.waitKey(1) & 0xFF == ord('q'):
                 break
@@ -286,15 +271,14 @@ cap.release()
 Data labeling 
 """
 start_labeling_process = time.time()
-path_label = utils.data_labeling(vid_path)
+path_label = utils.data_labeling(video_path)
+crash_status = not path_label.startswith('NT')
 
 for track_id in track_hist.keys():
-    if path_label.startswith('NT'):
-        track_hist[track_id]['label'] = [path_label]
-        track_hist[track_id]['is_crashed'] = False
-    else:
-        track_hist[track_id]['label'] = [path_label]
-        track_hist[track_id]['is_crashed'] = True
+    track_hist[track_id]['label'] = path_label
+    track_hist[track_id]['is_crash?'] = crash_status
+
+
 
 ## calc labeling processing time
 end_labeling_process = time.time()
@@ -306,8 +290,9 @@ time_full_runtime.append(end_runtime - start_runtime)
 """
 serialize result
 """
-with open(r'E:\01_Programming\Py\MasterThesis_CUDA\test_dataset\dump_file\cuda_tracking_home_experimental2.pickle', 'wb') as file:
-    pickle.dump(track_hist, file)
+utils.serialize_data(track_hist, 'test_target.pickle', test_path=dump_path)
+# with open(r'E:\01_Programming\Py\MasterThesis_CUDA\test_dataset\dump_file\ cuda_tracking_home_normal_median.pickle', 'wb') as file:
+#     pickle.dump(track_hist, file)
 
 """
 Check processing time 
@@ -325,6 +310,19 @@ dataframe_processing = pd.DataFrame({
 })
 
 print(dataframe_processing)
+
+for vec_id in track_hist.keys():
+    print(f"TRACK ID: {vec_id}")
+    print(f"Entry        : {track_hist[vec_id]['Entry']}")
+    print(f"Entry point  : {track_hist[vec_id]['Entry_point']}")
+
+    print(f"\nExit       : {track_hist[vec_id]['Exit']}")
+    print(f"Exit point   : {track_hist[vec_id]['Exit_point']}")
+
+    print(f"\nLabel      : {track_hist[vec_id]['label']}")
+    print(f"crash        : {track_hist[vec_id]['is_crash?']}")
+    print(" ")
+
 
 """
 Check labeling result 
