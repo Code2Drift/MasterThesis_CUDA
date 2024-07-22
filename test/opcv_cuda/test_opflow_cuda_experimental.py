@@ -26,7 +26,7 @@ main_path = config['main_path']['Home']
 dump_path = config['test_data']['dump_target']
 
 ## assign video path
-video_path = config['test_data']['normal']
+video_path = config['test_data']['crash']
 video_path = os.path.join(main_path, video_path)
 
 ## assign yolo detector path
@@ -162,24 +162,6 @@ else:
 
                     ### Ver. 2 EE-Assessment
                     start_ee_ass = time.time()
-                    # for idx, polygon in enumerate(polys):
-                    #     # Check if the object's center point is inside the polygon
-                    #     if utils.check_center_location(polygon, center_point):
-                    #         tracking_info = track_hist[track_id]
-                    #
-                    #         # Initialize entry point if not already set
-                    #         if not tracking_info.get('Entry', False):
-                    #             tracking_info['Entry_point'] = idx + 1
-                    #             tracking_info['Entry'] = True
-                    #             tracking_info['last_poly'] = idx
-                    #         else:
-                    #             # Update exit point if the polygon is different from the last encountered
-                    #             last_poly = tracking_info.get('last_poly')
-                    #             if last_poly is not None and last_poly != idx:
-                    #                 tracking_info['Exit_point'] = idx + 1
-                    #                 tracking_info['Exit'] = True
-                    #                 # Reset last_poly if no further tracking is needed (optional)
-                    #                 tracking_info['last_poly'] = None
 
                     utils.EE_Assessment(polys, center_point, default_dict=track_hist,
                                         vehicle_id=track_id)
@@ -199,46 +181,15 @@ else:
                         pt_1=pt_1,
                         pt_2=pt_2
                     )
-                    # create optical flow instance
-                    # cuda_flow = cv.cuda_FarnebackOpticalFlow.create(
-                    #     10,          # num levels, prev = 5
-                    #     0.5,        # pyramid scale
-                    #     True,       # Fast pyramid
-                    #     15,         # winSize
-                    #     10,         # numIters, prev= 10
-                    #     5,          # polyN
-                    #     1.1,        # PolySigma, prev =1.1
-                    #     0,          # flags
-                    # )
-                    #
-                    #
-                    # # calculate optical flow
-                    # cuda_flow = cv.cuda_FarnebackOpticalFlow.calc(
-                    #     cuda_flow, CUDA_frame_prev, CUDA_frame_curr, None,
-                    # )
-                    #
-                    # cuda_flow_x = cv.cuda_GpuMat(cuda_flow.size(), cv.CV_32FC1)
-                    # cuda_flow_y = cv.cuda_GpuMat(cuda_flow.size(), cv.CV_32FC1)
-                    # cv.cuda.split(cuda_flow, [cuda_flow_x, cuda_flow_y])
-                    #
-                    # cuda_mag, cuda_ang = cv.cuda.cartToPolar(
-                    #     cuda_flow_x, cuda_flow_y, angleInDegrees=True
-                    # )
-                    #
-                    # angle = cuda_ang.download()
-                    # mag_flow = cuda_mag.download()
-                    #
-                    # ROI_ang = utils.cut_OF(angle, pt_1, pt_2)
-                    # ROI_mag = utils.cut_OF(mag_flow, pt_1, pt_2)
+
                     end_OF_time = time.time()
                     time_opflow.append(end_OF_time - start_OF_time)
 
                     ### Oragnizing flow
-                    #histogram_bins = utils.HOOF_sum(ROI_mag, ROI_ang)
                     start_org_flow = time.time()
 
-                    # histogram_bins = utils.HOOF_sum_experimental(ROI_mag, ROI_ang)
-                    histogram_bins = utils.HOOF_median(ROI_mag, ROI_ang)
+                    histogram_bins = utils.HOOF_sum_experimental(ROI_mag, ROI_ang)
+                    # histogram_bins = utils.HOOF_median(ROI_mag, ROI_ang)
                     track_hist[track_id]['OF_mag'].append(histogram_bins)
 
                     end_org_flow = time.time()
@@ -291,8 +242,8 @@ time_full_runtime.append(end_runtime - start_runtime)
 serialize result
 """
 utils.serialize_data(track_hist, 'test_target.pickle', test_path=dump_path)
-# with open(r'E:\01_Programming\Py\MasterThesis_CUDA\test_dataset\dump_file\ cuda_tracking_home_normal_median.pickle', 'wb') as file:
-#     pickle.dump(track_hist, file)
+with open(r'E:\01_Programming\Py\MasterThesis_CUDA\test_dataset\dump_file\cuda_tracking_home_crash.pickle', 'wb') as file:
+    pickle.dump(track_hist, file)
 
 """
 Check processing time 

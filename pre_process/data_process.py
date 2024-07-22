@@ -1,43 +1,66 @@
-import pandas as pd
+import cv2
 import cv2 as cv
-import numpy as np
-from ultralytics import YOLO
 from collections import defaultdict
 import time
-import csv
-from scripts.src import utils
-import seaborn as sns
-import matplotlib as plt
+import pandas as pd
+import numpy as np
 import dill as pickle
-from scripts.PreProcess.signal_process import butter_LPF_Viz as signal_process
+import seaborn as sns
+import matplotlib.pyplot as plt
+from pre_process.signal_process import  butter_LPF_Viz as signal_process
+from src import utils
+from pathlib import Path
 import os
+import yaml
+from ultralytics import YOLO
+
+
+
+"""
+Load necessary object
+"""
+main_path = Path(__file__).parent.parent.absolute()
+config_path = os.path.join(main_path, 'config.yaml')
+
+### Path object
+with open(config_path, 'r') as file:
+    config = yaml.safe_load(file)
+
+## Different Objects
+polys = utils.load_EE_params()
+track_hist = utils.load_defaultdict()
+
+
+### YOLO configuration
+yolo_models = os.path.join(main_path, config['YOLO']['yolo8_m'])
+model = YOLO(yolo_models)
+model.to('cuda')
+resolution = (854, 480)
 
 
 def process_defaultdict(tracking_dictionary):
     final_df = pd.DataFrame()
 
-    for vec_id, _ in tracking_dictionary.items():
-        ## remove detection with less than
-        if len(tracking_dictionary[vec_id]['Frame']) < 60:
-            print(vec_id, 'removed')
+    for vehicle_id, _ in tracking_dictionary.items():
+
+        if len(tracking_dictionary[vehicle_id]['Frame']) < 120:
+            print(vehicle_id, 'removed')
 
         else:
-
-            '''  process optical flow histogram '''
-            ## create df for processing optical flow
-            df_opflow = pd.DataFrame(tracking_dictionary[vec_id]['OF_mag'],
-                                     columns=[
-                                         'bins_0', 'bins_1', 'bins_2', 'bins_3',
-                                         'bins_4', 'bins_5', 'bins_6', 'bins_7'])
-
-            ## filter OF signal
-            filtered_opflow = signal_process(df_opflow, cutoff=2, fs=60, order=1)
-            quantiles = filtered_opflow.quantile([0.5, 0.75])
+            ''' Process Optical Flow Histogramm '''
+            ## convert OF_mag to optical flow bins
+            df_opflow2 = pd.DataFrame(tracking_dictionary[vehicle_id]['OF_mag'],
+                                      columns=[
+                                          'bins_0', 'bins_1', 'bins_2', 'bins_3',
+                                          'bins_4', 'bins_5', 'bins_6', 'bins_7'])
+            ## process signal filtering
+            filtered_opflow = signal_process(df_opflow2, cutoff=2, fs=60, order=1)
+            quantiles = filtered_opflow.quantile([0.75])
             df_transform = {}
 
             ## Iterate over each column to collect 0.5 & 0.75 quantiles
             for column in filtered_opflow.columns:
-                df_transform[f'{column}_50'] = round(quantiles.loc[0.5, column], 0)
+                # df_transform[f'{column}_50'] = round(quantiles.loc[0.5, column], 0)
                 df_transform[f'{column}_75'] = round(quantiles.loc[0.75, column], 0)
 
             ## Convert the dictionary to a DataFrame
@@ -46,17 +69,17 @@ def process_defaultdict(tracking_dictionary):
             '''  process exit entry assessment '''
             df_EE = pd.DataFrame([
                 {
-                    'Entry': tracking_dictionary[vec_id]['Entry'],
-                    'Entry_point': tracking_dictionary[vec_id]['Entry_point'],
-                    'Exit': tracking_dictionary[vec_id]['Exit'],
-                    'Exit_point': tracking_dictionary[vec_id]['Exit_point']
+                    'Entry': tracking_dictionary[vehicle_id]['Entry'],
+                    'Entry_point': tracking_dictionary[vehicle_id]['Entry_point'],
+                    'Exit': tracking_dictionary[vehicle_id]['Exit'],
+                    'Exit_point': tracking_dictionary[vehicle_id]['Exit_point']
                 }
             ], columns=['Entry', 'Entry_point', 'Exit', 'Exit_point'])
 
             '''  process data label '''
             df_label = pd.DataFrame([{
-                'path_label': tracking_dictionary[vec_id]['Label'],
-                'outcome': tracking_dictionary[vec_id]['is_crash?'],
+                'path_label': tracking_dictionary[vehicle_id]['label'][0].split('/')[-1],
+                'outcome': tracking_dictionary[vehicle_id]['is_crash?'],
             }],
                 columns=['path_label', 'outcome'])
 
@@ -66,175 +89,135 @@ def process_defaultdict(tracking_dictionary):
 
     return final_df
 
-def YoFlow_main(path, yolo_models:str) -> defaultdict:
+
+def YOFLOW_main(yolo_models, video_path):
 
     '''
-    Initialization parameters
+    Tracking Information
     '''
-
-    video = cv.VideoCapture(path)
-    cap = video
-    _, frame_1 = cap.read()
-    frame_1 = utils.resize_frame(frame_1, 480)
-
-    '''
-    Intersection Entry Exit Parameters
-    '''
-    poly_1 = np.array([[118, 200], [148, 190], [155, 450], [67, 450]])  ## left lane
-    poly_2 = np.array([[250, 150], [411, 130], [425, 135], [255, 160]])  ## upper lane
-    poly_3 = np.array([[520, 135], [530, 130], [730, 190], [727, 200]])  ## right lane
-    poly_4 = np.array([[850, 280], [850, 475], [650, 475]])  ## lower lane
-
-    polys = [poly_1, poly_2, poly_3, poly_4]
-
-    '''
-    Yolo initialization params
-    '''
-    yolo_pt = yolo_models
-    model = YOLO(yolo_pt)
-
-    '''
-    Tracking initialization params
-    '''
-
     frame_count = 0
-    track_hist = defaultdict(lambda: {
-        'Frame': [],
-        'Entry': False,
-        'Entry_point': None,
-        'Exit': False,
-        'Exit_point': None,
-        'OF_mag': [],
-        'is_crash?': False,
-        'Label': [],
-        'last_poly': None
+    track_hist = utils.load_defaultdict()
+    fps_list = []
 
-    })
+    cap = cv2.VideoCapture(video_path)
 
-    while True:
-        status_cap, frame = cap.read()
+    """ Initator FRAMES """
+    status_success, init_frame = cap.read()
 
-        start = time.time()
+    if status_success is not True:
+        print("fail to read frame")
 
-        if not status_cap:
-            break
+    else:
+            ########### initialization frame
 
-        frame_count += 1
+            """ OPCV-YOLO Block """
+            init_frame = utils.resize_frame(init_frame, 480)
 
-        frame = utils.resize_frame(frame, 480)
+            """ CUDA BLOCK """
+            CUDA_frame_prev = utils.send2cuda(init_frame)
 
-        YOLO_annot = frame.copy()
+            ########### Main video loop
+            while True:
 
-        ''' 
-        Main Tracking Block - Order of Execution: 
+                ## stop process if frame did not red correctly
+                """ Read First Frame """
+                success, current_frame = cap.read()
 
-            --- YOLO
-            1. YOLO Detection, tracking
-            2. YOLO Bounding Box localization
+                ## start time to calculate FPS
+                start = time.time()
 
-            --- Entry Exit
-            3. Intersection Entry Exit assessment
+                if not success:
+                    print("video ended")
+                    break
 
-            --- Optical Flow Block
-            4. Optical Flow calculation
-            5. Get ROI Optical Flow for each object
-            6. Organize flows using angle
+                """ OPCV Block for second frame """
+                current_frame = utils.resize_frame(current_frame, 480)
+                frame_count += 1
 
-            --- Data collection & Accident labeling 
-            7. organize and collect all data 
-            8. manage data labeling
+                """ Pre-Processing """
+                CUDA_frame_curr = utils.send2cuda(current_frame)
 
-        '''
+                ''' Main YO_FLOW Block '''
+                YOLO_RESULT = model.track(current_frame, persist=True, conf=0.3)
+                YOLO_ANNOT = current_frame.copy()
 
-        ''' YOLO Block '''
-        YOLO_res = model.track(frame, persist=True)
-        if YOLO_res[0].boxes.id is not None:
+                if YOLO_RESULT[0].boxes.id is not None:
+                    YOLO_bb = YOLO_RESULT[0].boxes.xywh
+                    YOLO_trackID = YOLO_RESULT[0].boxes.id.numpy().astype(int)
 
-            YOLO_bb = YOLO_res[0].boxes.xywh.cpu()
-            YOLO_TrackID = YOLO_res[0].boxes.id.cpu().numpy().astype(int)
+                    ## for visualization purpose
+                    # YOLO_ANNOT = YOLO_RESULT[0].plot(line_width=1, labels=False, probs=False, conf=False)
 
-            YOLO_annot = YOLO_res[0].plot(line_width=1, labels=True, conf=0.7, probs=False)
+                    """ Main Logic for YOFLOW """
+                    for box, track_id in zip(YOLO_bb, YOLO_trackID):
 
-            for box, track_id in zip(YOLO_bb, YOLO_TrackID):
-                x, y, w, h = map(int, box)
-                box_w = 60 / 2
-                box_h = 30 / 2
-                pt_1 = (int(x - box_w), int(y - box_h))  ## pt_1: left upper point
-                pt_2 = (int(x + box_w), int(y + box_h))  ## pt_2: right lower point
+                        ''' YOLO Tracking Result '''
+                        x, y, w, h = map(int, box)
+                        box_w = 60 / 2
+                        box_h = 30 / 2
+                        pt_1 = (int(x - box_w), int(y - box_h))  ## pt_1: left upper point
+                        pt_2 = (int(x + box_w), int(y + box_h))  ## pt_2: right lower point
+                        track_hist[track_id]['Frame'].append(frame_count)
+                        center_point = (x, y)
 
-                ''' YOLO Assessment '''
-                track_hist[track_id]['Frame'].append(frame_count)
+                        ## for visualization purpose
+                        # cv.circle(YOLO_ANNOT, center=center_point, radius=3, thickness=2, color=(255, 255, 255))
 
-                ''' Entry Exit Assessment '''
-                ## visualization of center point - comment if not needed.
-                center_point = (x, y)
-                cv.circle(YOLO_annot, center=center_point, radius=3, thickness=2, color=(255, 255, 255))
+                        ''' Intersection Entry Exit Assessment '''
 
-                newly_entered = False
+                        ### Ver. 2 EE-Assessment
+                        utils.EE_Assessment(polys, center_point, default_dict=track_hist,
+                                            vehicle_id=track_id)
 
-                ## iterate over each polygone
+                        ''' Optical Flow CUDA Calculation'''
 
-                for idx, poly in enumerate(polys):
-                    ## check if object center point is inside polygone
-                    if utils.check_center_location(poly, center_point):
-                        # Object is inside the polygon
-                        if not track_hist[track_id]['Entry']:
-                            # Set the first polygon index as the entry point
-                            track_hist[track_id]['Entry_point'] = idx + 1
-                            track_hist[track_id]['Entry'] = True
-                            track_hist[track_id]['last_poly'] = idx
-                        else:
-                            # If a new polygon is detected and it's different from the entry polygon
-                            if track_hist[track_id]['last_poly'] is not None and track_hist[track_id][
-                                'last_poly'] != idx:
-                                track_hist[track_id]['Exit_point'] = idx + 1
-                                track_hist[track_id]['Exit'] = True
-                                # Optionally reset last_poly if no further tracking is needed
-                                track_hist[track_id]['last_poly'] = None
+                        ROI_mag, ROI_ang = utils.cuda_opflow(
+                            cuda_prev   =CUDA_frame_prev,
+                            cuda_current=CUDA_frame_curr,
+                            pt_1=pt_1,
+                            pt_2=pt_2
+                        )
 
-                ''' Optical flow Block '''
+                        #### 1. Choice : Sum of Flow in Clockwise fashion
+                        histogram_bins = utils.HOOF_sum_experimental(ROI_mag, ROI_ang)
 
-                ## 4. optical flow calculation
-                gray_F1, gray_F2, INIT_OF = utils.Oneline_OF(frame_1, frame)
+                        #### 2. Choice : Median of Flow in Clockwise fashion
+                        # histogram_bins = utils.HOOF_median(ROI_mag, ROI_ang)
 
-                ## 5. get ROI optical flow for each object
-                ROI_ang = utils.cut_OF(INIT_OF[:, :, 1], pt_1, pt_2)
-                ROI_mag = utils.cut_OF(INIT_OF[:, :, 0], pt_1, pt_2)
-                cut_mag, cut_ang = cv.cartToPolar(ROI_mag, ROI_ang, angleInDegrees=True)
+                        #### 3. Choice : Average of Flow in Clockwise fashion
+                        # histogram_bins = utils.HOOF_avg(ROI_mag, ROI_ang)
 
-                ## 6. organize flows using angle
-                cut_ang = (360 - cut_ang) % 360
-                cut_ang = cut_ang.astype(int)
+                        """ Add Calculated flow to each detected object """
+                        track_hist[track_id]['OF_mag'].append(histogram_bins)
 
-                ''' Data Collection '''
 
-                ## 7. write collected information regarding ID
-                histogram_bins = utils.HOOF_ID(cut_mag, cut_ang)
-                track_hist[track_id]['OF_mag'].append(histogram_bins)
+                CUDA_frame_prev = CUDA_frame_curr
 
-                ## 8. manage data labeling
-                path_label = utils.data_labeling(path)
+                end = time.time()
+                fps = 1 / (end - start)
 
-                if path_label.startswith('NT'):
-                    track_hist[track_id]['Label'] = [path_label]
-                    track_hist[track_id]['is_crash?'] = False
-                else:
-                    track_hist[track_id]['Label'] = [path_label]
-                    track_hist[track_id]['is_crash?'] = True
+                fps_list.append(fps)
 
-        ## FPS calculation
-        ## Visualization of whole process - comment if not needed
-        end = time.time()
-        fps = 1 / (end - start)
-        frame_1 = frame
+                # visualization Frame-by-Frame plot of image
+                # cv.putText(YOLO_ANNOT, f"{fps:.2f} FPS", (440, 240), cv.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 0), 2)
+                # cv.imshow("Cuda Frame", YOLO_ANNOT)
 
-        cv.putText(YOLO_annot, f"{fps:.2f} FPS", (20, 30), cv.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 0), 2)
-        cv.imshow("YOLO-OUTPUT", YOLO_annot)
+                if cv.waitKey(1) & 0xFF == ord('q'):
+                    break
 
-        if cv.waitKey(1) & 0xFF == ord("q"):
-            break
-
-    cap.release()
     cv.destroyAllWindows()
+    cap.release()
+
+    """
+    Data labeling 
+    """
+    start_labeling_process = time.time()
+    path_label = utils.data_labeling(video_path)
+    crash_status = not path_label.startswith('NT')
+
+    for track_id in track_hist.keys():
+        track_hist[track_id]['label'] = path_label
+        track_hist[track_id]['is_crash?'] = crash_status
 
     return track_hist
+

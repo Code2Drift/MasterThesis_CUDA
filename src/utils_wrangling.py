@@ -4,6 +4,40 @@ import dill as pickle
 import seaborn as sns
 import matplotlib.pyplot as plt
 from pre_process.signal_process import  butter_LPF_Viz as signal_process
+from src import utils
+from pathlib import Path
+import os
+import yaml
+from ultralytics import YOLO
+
+
+
+"""
+Load necessary object
+"""
+main_path = Path(__file__).parent.parent.absolute()
+config_path = os.path.join(main_path, 'config.yaml')
+
+### Path object
+with open(config_path, 'r') as file:
+    config = yaml.safe_load(file)
+
+## Different Objects
+polys = utils.load_EE_params()
+track_hist = utils.load_defaultdict()
+
+
+### YOLO configuration
+yolo_models = os.path.join(main_path, config['YOLO']['yolo8_m'])
+model = YOLO(yolo_models)
+model.to('cuda')
+resolution = (854, 480)
+
+
+
+"""
+Functions 
+"""
 
 def to_dataframe_OneObject(pickle_object, int_obj):
     ## convert OF_mag to optical flow bins
@@ -97,8 +131,3 @@ def process_to_dataframe(load_tracking, processtarget_path, ):
         final_df = pd.concat([final_df, concated_df], ignore_index=True)
 
     final_df.to_csv(r'E:\01_Programming\Py\Masterarbeit_BeamNG\data_extract\YoFlow_res\processed_df.csv', index=False)
-
-def deserialize_data(load_path):
-    with open(load_path, 'rb') as file:
-        load_file = pickle.load(file)
-    return load_file
