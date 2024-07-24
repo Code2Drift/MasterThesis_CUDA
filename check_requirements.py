@@ -5,6 +5,8 @@ import torchvision
 import os
 import yaml
 
+print(os.getcwd())
+
 with open("config.yaml", "r") as file:
     config = yaml.safe_load(file)
 main_path = config['main_path']['Home']

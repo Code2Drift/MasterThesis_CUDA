@@ -38,7 +38,7 @@ model.to('cuda')
 resolution = (854, 480)
 
 
-def YOFLOW_main(video_path):
+def YOFLOW_main(video_path, target_name):
 
     '''
     Tracking Information
@@ -116,7 +116,7 @@ def YOFLOW_main(video_path):
                     YOLO_trackID = YOLO_RESULT[0].boxes.id.numpy().astype(int)
 
                     ## for visualization purpose
-                    # YOLO_ANNOT = YOLO_RESULT[0].plot(line_width=1, labels=False, probs=False, conf=False)
+                    YOLO_ANNOT = YOLO_RESULT[0].plot(line_width=1, labels=False, probs=False, conf=False)
 
                     """ Main Logic for YOFLOW """
                     for box, track_id in zip(YOLO_bb, YOLO_trackID):
@@ -170,7 +170,7 @@ def YOFLOW_main(video_path):
 
                 # visualization Frame-by-Frame plot of image
                 cv.putText(YOLO_ANNOT, f"{fps:.2f} FPS", (440, 240), cv.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 0), 2)
-                cv.imshow("Cuda Frame", YOLO_ANNOT)
+                cv.imshow(target_name, YOLO_ANNOT)
 
                 if cv.waitKey(1) & 0xFF == ord('q'):
                     break
@@ -181,9 +181,18 @@ def YOFLOW_main(video_path):
     """
     Data labeling 
     """
-    start_labeling_process = time.time()
     path_label = utils.data_labeling(video_path)
     crash_status = not path_label.startswith('NT')
+    print(" ")
+    print(" ")
+    print(" ")
+
+    print(path_label)
+
+    print(" ")
+    print(" ")
+    print(" ")
+
 
     for track_id in track_hist.keys():
         track_hist[track_id]['label'] = path_label
@@ -233,7 +242,7 @@ def process_defaultdict(tracking_dictionary):
 
             '''  process data label '''
             df_label = pd.DataFrame([{
-                'path_label': tracking_dictionary[vehicle_id]['label'][0].split('/')[-1],
+                'path_label': tracking_dictionary[vehicle_id]['label'],
                 'outcome': tracking_dictionary[vehicle_id]['is_crash?'],
             }],
                 columns=['path_label', 'outcome'])

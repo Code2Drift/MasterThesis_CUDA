@@ -1,6 +1,6 @@
 main_path:
   Home: "E:/01_Programming/Py/MasterThesis_CUDA/"
-  Work: "under construction"
+  Work: "C:/Users/Team Vaculin/PycharmProjects/MasterThesis_CUDA/"
 
 YOLO:
   yolo8_m  : "yolo_models/yolov8m.pt"
@@ -29,3 +29,13 @@ test_result:
 
 yoflow_target:
   scenario1: "dataset/scenario1/"
+  scenario2: "dataset/scenario2/"
+  scenario3: "dataset/scenario3/"
+  scenario4: "dataset/scenario4/"
+  scenario5: "dataset/scenario5/"
+
+yoflow_source_ssd:
+  scenario1: "D:/BeamNG_dataset/Crash_8SC1/"
+
+yoflow_source_home:
+  scenario1: "under construction"
