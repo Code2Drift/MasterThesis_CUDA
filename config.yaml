@@ -26,3 +26,6 @@ test_result:
   test_sc3: "dataset/result_sc3/"
   test_sc4: "dataset/result_sc4/"
   test_sc5: "dataset/result_sc5/"
+
+yoflow_target:
+  scenario1: "dataset/scenario1/"

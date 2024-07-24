@@ -31,10 +31,9 @@ with open(config_path, 'r') as file:
     config = yaml.safe_load(file)
 
 main_path = config['main_path']['Home']
-folder_path = os.path.join(main_path, config['test_folder']['test_sc5'])
-result_path = os.path.join(main_path, config['test_result']['test_sc5'], 'result_sc5.csv')
-
-
+# folder_path = os.path.join(main_path, config['test_folder']['test_sc5'])
+folder_path = "E:\Capture\BeamNG_dataset\BeamNG.drive\Crash_8\Wagon-LegranSE"
+result_path = os.path.join(main_path, config['yoflow_target']['scenario1'], 'Wagon-LegranSE.csv')
 
 main_df = pd.DataFrame()
 start_time = time.time()
