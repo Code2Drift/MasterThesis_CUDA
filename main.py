@@ -36,7 +36,7 @@ main_path = config['main_path']['Work']
 Define source and target path
 """
 # folder_path = os.path.join(main_path, config['test_folder']['test_sc5'])
-target = "etk800-Marshall"
+target = "etk800-Wagon"
 full_target = target + "/"
 
 folder_path = os.path.join(config['yoflow_source_ssd']['scenario1'], full_target)
@@ -54,7 +54,7 @@ iteration = 1
 
 for file_name in os.listdir(folder_path):
 
-    target = target + "--- Iter: " + iteration
+    target = target + f"--- Iter:  + {iteration}"
 
     if file_name.endswith('.mp4'):
 

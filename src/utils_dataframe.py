@@ -45,3 +45,4 @@ def NM2_False(dataframe):
     dataframe.loc[index2change, 'outcome'] = False
 
     return dataframe
+
