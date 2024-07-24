@@ -32,7 +32,7 @@ video_path = os.path.join(main_path, video_path)
 ## assign yolo detector path
 yolo_models = config['YOLO']['yolo8_m']
 yolo_models = os.path.join(main_path, yolo_models)
-
+print(yolo_models)
 
 ''' 
 Video Configuration 
@@ -125,6 +125,7 @@ else:
             time_preprocessing.append(end_preprocessing - start_preprocessing)
 
             ''' Main YO_FLOW Block '''
+
             start_yolo = time.time()
             YOLO_RESULT = model.track(current_frame, persist=True, conf=0.3)
 
@@ -241,9 +242,9 @@ time_full_runtime.append(end_runtime - start_runtime)
 """
 serialize result
 """
-utils.serialize_data(track_hist, 'test_target.pickle', test_path=dump_path)
-with open(r'E:\01_Programming\Py\MasterThesis_CUDA\test_dataset\dump_file\cuda_tracking_home_crash.pickle', 'wb') as file:
-    pickle.dump(track_hist, file)
+# utils.serialize_data(track_hist, 'test_target.pickle', test_path=dump_path)
+# with open(r'E:\01_Programming\Py\MasterThesis_CUDA\test_dataset\dump_file\cuda_tracking_home_crash.pickle', 'wb') as file:
+#     pickle.dump(track_hist, file)
 
 """
 Check processing time 

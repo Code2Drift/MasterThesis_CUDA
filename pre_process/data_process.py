@@ -38,59 +38,7 @@ model.to('cuda')
 resolution = (854, 480)
 
 
-def process_defaultdict(tracking_dictionary):
-    final_df = pd.DataFrame()
-
-    for vehicle_id, _ in tracking_dictionary.items():
-
-        if len(tracking_dictionary[vehicle_id]['Frame']) < 120:
-            print(vehicle_id, 'removed')
-
-        else:
-            ''' Process Optical Flow Histogramm '''
-            ## convert OF_mag to optical flow bins
-            df_opflow2 = pd.DataFrame(tracking_dictionary[vehicle_id]['OF_mag'],
-                                      columns=[
-                                          'bins_0', 'bins_1', 'bins_2', 'bins_3',
-                                          'bins_4', 'bins_5', 'bins_6', 'bins_7'])
-            ## process signal filtering
-            filtered_opflow = signal_process(df_opflow2, cutoff=2, fs=60, order=1)
-            quantiles = filtered_opflow.quantile([0.75])
-            df_transform = {}
-
-            ## Iterate over each column to collect 0.5 & 0.75 quantiles
-            for column in filtered_opflow.columns:
-                # df_transform[f'{column}_50'] = round(quantiles.loc[0.5, column], 0)
-                df_transform[f'{column}_75'] = round(quantiles.loc[0.75, column], 0)
-
-            ## Convert the dictionary to a DataFrame
-            transformed_df = pd.DataFrame([df_transform])
-
-            '''  process exit entry assessment '''
-            df_EE = pd.DataFrame([
-                {
-                    'Entry': tracking_dictionary[vehicle_id]['Entry'],
-                    'Entry_point': tracking_dictionary[vehicle_id]['Entry_point'],
-                    'Exit': tracking_dictionary[vehicle_id]['Exit'],
-                    'Exit_point': tracking_dictionary[vehicle_id]['Exit_point']
-                }
-            ], columns=['Entry', 'Entry_point', 'Exit', 'Exit_point'])
-
-            '''  process data label '''
-            df_label = pd.DataFrame([{
-                'path_label': tracking_dictionary[vehicle_id]['label'][0].split('/')[-1],
-                'outcome': tracking_dictionary[vehicle_id]['is_crash?'],
-            }],
-                columns=['path_label', 'outcome'])
-
-            concated_df = pd.concat([transformed_df, df_EE, df_label], axis=1)
-
-        final_df = pd.concat([final_df, concated_df], ignore_index=True)
-
-    return final_df
-
-
-def YOFLOW_main(yolo_models, video_path):
+def YOFLOW_main(video_path):
 
     '''
     Tracking Information
@@ -116,7 +64,29 @@ def YOFLOW_main(yolo_models, video_path):
             """ CUDA BLOCK """
             CUDA_frame_prev = utils.send2cuda(init_frame)
 
-            ########### Main video loop
+
+            ''' 
+                    Main Tracking Block - Order of Execution: 
+
+                        --- YOLO
+                        1. YOLO Detection, tracking
+                        2. YOLO Bounding Box localization
+
+                        --- Entry Exit
+                        3. Intersection Entry Exit assessment
+
+                        --- Optical Flow Block
+                        4. Optical Flow calculation
+                        5. Get ROI Optical Flow for each object
+                        6. Organize flows using angle
+
+                        --- Data collection & Accident labeling 
+                        7. iterate until vehicle is not detected or tracking failed
+                        8. manage data labeling
+
+            '''
+
+
             while True:
 
                 ## stop process if frame did not red correctly
@@ -160,8 +130,8 @@ def YOFLOW_main(yolo_models, video_path):
                         track_hist[track_id]['Frame'].append(frame_count)
                         center_point = (x, y)
 
-                        ## for visualization purpose
-                        # cv.circle(YOLO_ANNOT, center=center_point, radius=3, thickness=2, color=(255, 255, 255))
+                        # for visualization purpose
+                        cv.circle(YOLO_ANNOT, center=center_point, radius=3, thickness=2, color=(255, 255, 255))
 
                         ''' Intersection Entry Exit Assessment '''
 
@@ -172,10 +142,10 @@ def YOFLOW_main(yolo_models, video_path):
                         ''' Optical Flow CUDA Calculation'''
 
                         ROI_mag, ROI_ang = utils.cuda_opflow(
-                            cuda_prev   =CUDA_frame_prev,
-                            cuda_current=CUDA_frame_curr,
-                            pt_1=pt_1,
-                            pt_2=pt_2
+                            cuda_prev = CUDA_frame_prev,
+                            cuda_current = CUDA_frame_curr,
+                            pt_1 = pt_1,
+                            pt_2 = pt_2
                         )
 
                         #### 1. Choice : Sum of Flow in Clockwise fashion
@@ -199,8 +169,8 @@ def YOFLOW_main(yolo_models, video_path):
                 fps_list.append(fps)
 
                 # visualization Frame-by-Frame plot of image
-                # cv.putText(YOLO_ANNOT, f"{fps:.2f} FPS", (440, 240), cv.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 0), 2)
-                # cv.imshow("Cuda Frame", YOLO_ANNOT)
+                cv.putText(YOLO_ANNOT, f"{fps:.2f} FPS", (440, 240), cv.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 0), 2)
+                cv.imshow("Cuda Frame", YOLO_ANNOT)
 
                 if cv.waitKey(1) & 0xFF == ord('q'):
                     break
@@ -221,3 +191,55 @@ def YOFLOW_main(yolo_models, video_path):
 
     return track_hist
 
+
+def process_defaultdict(tracking_dictionary):
+    final_df = pd.DataFrame()
+
+    for vehicle_id, _ in tracking_dictionary.items():
+
+        if len(tracking_dictionary[vehicle_id]['Frame']) < 120:
+            print(vehicle_id, 'removed')
+            concated_df = pd.DataFrame()
+
+        else:
+            ''' Process Optical Flow Histogramm '''
+            ## convert OF_mag to optical flow bins
+            df_opflow2 = pd.DataFrame(tracking_dictionary[vehicle_id]['OF_mag'],
+                                      columns=[
+                                          'bins_0', 'bins_1', 'bins_2', 'bins_3',
+                                          'bins_4', 'bins_5', 'bins_6', 'bins_7'])
+            ## process signal filtering
+            filtered_opflow = signal_process(df_opflow2, cutoff=2, fs=60, order=1)
+            quantiles = filtered_opflow.quantile([0.75])
+            df_transform = {}
+
+            ## Iterate over each column to collect 0.5 & 0.75 quantiles
+            for column in filtered_opflow.columns:
+                # df_transform[f'{column}_50'] = round(quantiles.loc[0.5, column], 0)
+                df_transform[f'{column}_75'] = round(quantiles.loc[0.75, column], 0)
+
+            ## Convert the dictionary to a DataFrame
+            transformed_df = pd.DataFrame([df_transform])
+
+            '''  process exit entry assessment '''
+            df_EE = pd.DataFrame([
+                {
+                    'Entry': tracking_dictionary[vehicle_id]['Entry'],
+                    'Entry_point': tracking_dictionary[vehicle_id]['Entry_point'],
+                    'Exit': tracking_dictionary[vehicle_id]['Exit'],
+                    'Exit_point': tracking_dictionary[vehicle_id]['Exit_point']
+                }
+            ], columns=['Entry', 'Entry_point', 'Exit', 'Exit_point'])
+
+            '''  process data label '''
+            df_label = pd.DataFrame([{
+                'path_label': tracking_dictionary[vehicle_id]['label'][0].split('/')[-1],
+                'outcome': tracking_dictionary[vehicle_id]['is_crash?'],
+            }],
+                columns=['path_label', 'outcome'])
+
+            concated_df = pd.concat([transformed_df, df_EE, df_label], axis=1)
+
+        final_df = pd.concat([final_df, concated_df], ignore_index=True)
+
+    return final_df
