@@ -12,3 +12,17 @@ test_data:
   crash: "test_dataset/single_file/50-40.mp4"
   near_miss: "test_dataset/single_file/40-28.mp4"
   dump_target: "E:/01_Programming/Py/MasterThesis_CUDA/test_dataset/dump_file/"
+
+test_folder:
+  test_sc1: "dataset/test_sc1/"
+  test_sc2: "dataset/test_sc2/"
+  test_sc3: "dataset/test_sc3/"
+  test_sc4: "dataset/test_sc4/"
+  test_sc5: "dataset/test_sc5/"
+
+test_result:
+  test_sc1: "dataset/result_sc1/"
+  test_sc2: "dataset/result_sc2/"
+  test_sc3: "dataset/result_sc3/"
+  test_sc4: "dataset/result_sc4/"
+  test_sc5: "dataset/result_sc5/"
