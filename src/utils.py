@@ -46,7 +46,7 @@ def profile(func):
 Image / Frame Processing 
 """
 #@profile
-def show_frames(frame_num, cap, resolution):
+def show_frames(frame_num, cap):
     if not cap.isOpened():
         print("Error in opening video file")
 
@@ -77,6 +77,28 @@ def check_frame(vid_path, frame_num):
         print("failed to properly read frames")
     return frame
 
+
+def cut_frame(frame):
+    x1, y1 = 0, 0
+    x2, y2 = 700, 80
+    frame[y1:y2, x1:x2] = 0
+
+    x11, y11 = 0, 80
+    x21, y21 = 200, 180
+    frame[y11:y21, x11:x21] = 0
+
+    x13, y13 = 700, 0
+    x23, y23 = 854, 40
+    frame[y13:y23, x13:x23] = 0
+
+    polygon_points1 = np.array([[854, 120], [854, 250], [740, 200]])
+    polygon_points2 = np.array([[360, 80], [500, 135], [700, 80]])
+
+    # Fill the polygon with black
+    cv.fillPoly(frame, [polygon_points1], (0, 0, 0))
+    cv.fillPoly(frame, [polygon_points2], (0, 0, 0))
+
+    return frame
 
 
 """
@@ -274,7 +296,7 @@ def draw_lane_area(annotated_frame):
     poly_1 = np.array([[118, 200], [148, 190], [155, 450], [67, 450]])
     poly_2 = np.array([[250, 150], [411, 130], [425, 135], [255, 160]])
     poly_3 = np.array([[520, 135], [530, 130], [730, 190], [727, 200]])
-    poly_4 = np.array([[850, 280], [850, 475], [650, 475]])
+    poly_4 = np.array([[799, 245], [850, 250],[850, 475], [550, 475]])
 
     cv.fillPoly(annotated_frame, pts=[poly_1], color=(255, 0, 0))
     cv.fillPoly(annotated_frame, pts=[poly_2], color=(0, 255, 0))
@@ -337,7 +359,7 @@ def load_EE_params():
     poly_1 = np.array([[118, 200], [148, 190], [155, 450], [67, 450]])  ## left lane
     poly_2 = np.array([[250, 150], [411, 130], [425, 135], [255, 160]])  ## upper lane
     poly_3 = np.array([[520, 135], [530, 130], [730, 190], [727, 200]])  ## right lane
-    poly_4 = np.array([[850, 280], [850, 475], [650, 475]])  ## lower lane
+    poly_4 = np.array([[799, 245], [850, 250],[850, 475], [550, 475]])
 
     polys = [poly_1, poly_2, poly_3, poly_4]
 

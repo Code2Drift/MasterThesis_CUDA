@@ -60,6 +60,7 @@ def YOFLOW_main(video_path, target_name):
 
             """ OPCV-YOLO Block """
             init_frame = utils.resize_frame(init_frame, 480)
+            init_frame = utils.cut_frame(init_frame)
 
             """ CUDA BLOCK """
             CUDA_frame_prev = utils.send2cuda(init_frame)
@@ -102,6 +103,7 @@ def YOFLOW_main(video_path, target_name):
 
                 """ OPCV Block for second frame """
                 current_frame = utils.resize_frame(current_frame, 480)
+                current_frame = utils.cut_frame(current_frame)
                 frame_count += 1
 
                 """ Pre-Processing """
@@ -132,6 +134,7 @@ def YOFLOW_main(video_path, target_name):
 
                         # for visualization purpose
                         cv.circle(YOLO_ANNOT, center=center_point, radius=3, thickness=2, color=(255, 255, 255))
+
 
                         ''' Intersection Entry Exit Assessment '''
 

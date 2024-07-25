@@ -26,7 +26,7 @@ main_path = config['main_path']['Home']
 dump_path = config['test_data']['dump_target']
 
 ## assign video path
-video_path = config['test_data']['crash']
+video_path = config['test_data']['near_miss']
 video_path = os.path.join(main_path, video_path)
 
 ## assign yolo detector path
@@ -93,6 +93,7 @@ else:
 
         """ OPCV-YOLO Block """
         init_frame = utils.resize_frame(init_frame, 480)
+        init_frame = utils.cut_frame(init_frame)
 
         """ CUDA BLOCK """
         CUDA_frame_prev = utils.send2cuda(init_frame)
@@ -114,6 +115,7 @@ else:
 
             """ OPCV Block for second frame """
             current_frame = utils.resize_frame(current_frame, 480)
+            current_frame = utils.cut_frame(current_frame)
 
             frame_count += 1
 
@@ -142,7 +144,7 @@ else:
                 YOLO_trackID = YOLO_RESULT[0].boxes.id.numpy().astype(int)
 
                 ## for visualization purpose
-                # YOLO_ANNOT = YOLO_RESULT[0].plot(line_width=1, labels=False, probs=False, conf=False)
+                YOLO_ANNOT = YOLO_RESULT[0].plot(line_width=1, labels=False, probs=False, conf=False)
 
 
                 for box, track_id in zip(YOLO_bb, YOLO_trackID):
@@ -157,7 +159,7 @@ else:
                     center_point = (x, y)
 
                     ## for visualization purpose
-                    # cv.circle(YOLO_ANNOT, center=center_point, radius=3, thickness=2, color=(255, 255, 255))
+                    cv.circle(YOLO_ANNOT, center=center_point, radius=3, thickness=2, color=(255, 255, 255))
 
                     ''' Intersection Entry Exit Assessment '''
 
@@ -209,6 +211,7 @@ else:
 
 
             # visualization Frame-by-Frame plot of image
+            YOLO_ANNOT = utils.draw_lane_area(YOLO_ANNOT)
             cv.putText(YOLO_ANNOT, f"{fps:.2f} FPS", (440, 240), cv.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 0), 2)
             cv.imshow("Cuda Frame", YOLO_ANNOT)
 
@@ -264,7 +267,7 @@ dataframe_processing = pd.DataFrame({
 print(dataframe_processing)
 
 for vec_id in track_hist.keys():
-    print(f"TRACK ID: {vec_id}")
+    print(f"TRACK ID: {vec_id}, length: {len(track_hist[vec_id]['Frame'])} frames")
     print(f"Entry        : {track_hist[vec_id]['Entry']}")
     print(f"Entry point  : {track_hist[vec_id]['Entry_point']}")
 

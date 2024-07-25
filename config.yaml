@@ -9,6 +9,7 @@ YOLO:
 
 test_data:
   normal: "test_dataset/single_file/NT-70-40.mp4"
+  normal_SC2: "test_dataset/single_file/NT-30-40_SC2.mp4"
   crash: "test_dataset/single_file/50-40.mp4"
   near_miss: "test_dataset/single_file/40-28.mp4"
   dump_target: "E:/01_Programming/Py/MasterThesis_CUDA/test_dataset/dump_file/"
@@ -39,3 +40,4 @@ yoflow_source_ssd:
 
 yoflow_source_home:
   scenario1: "E:/Capture/BeamNG_dataset/BeamNG.drive/Crash_8/"
+  scenario2: "E:/Capture/BeamNG_dataset/BeamNG.drive/Crash8_SC2"

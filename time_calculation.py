@@ -10,7 +10,7 @@ native_fps = 60
 second2hour = 3600
 
 ### Changeable Parameters
-avg_fps = 16
+avg_fps = 21
 processing_ratio = 60 / avg_fps
 
 ### calculation
