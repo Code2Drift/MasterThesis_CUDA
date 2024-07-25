@@ -252,3 +252,6 @@ def process_defaultdict(tracking_dictionary):
         final_df = pd.concat([final_df, concated_df], ignore_index=True)
 
     return final_df
+
+def path_batch():
+    return None

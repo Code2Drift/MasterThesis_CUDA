@@ -30,20 +30,20 @@ config_path = os.path.join(main_path, 'config.yaml')
 with open(config_path, 'r') as file:
     config = yaml.safe_load(file)
 
-main_path = config['main_path']['Work']
+# main_path = config['main_path']['Work']
+main_path = config['main_path']['Home']
 
 """
 Define source and target path
 """
-# folder_path = os.path.join(main_path, config['test_folder']['test_sc5'])
-target = "etk800-Wagon"
-full_target = target + "/"
 
-folder_path = os.path.join(config['yoflow_source_ssd']['scenario1'], full_target)
-csv_name = folder_path.split('/')[-2] + ".csv"
-result_path = os.path.join(main_path, config['yoflow_target']['scenario1'], csv_name)
+## 1. Define Target Batch
+target_batch = "00BATCH_LegranSE"
 
-print(csv_name)
+full_target_batch = target_batch + "/"
+batch_path = os.path.join(config['yoflow_source_home']['scenario1'], full_target_batch)
+
+
 
 """
 Initatior and reference objects
@@ -52,24 +52,39 @@ main_df = pd.DataFrame()
 start_time = time.time()
 iteration = 1
 
-for file_name in os.listdir(folder_path):
+for target_name in os.listdir(batch_path):
+    temp_path1 = os.path.join(batch_path, target_name)
 
-    target = target + f"--- Iter:  + {iteration}"
+    main_df = pd.DataFrame()
 
-    if file_name.endswith('.mp4'):
+    for file_name in os.listdir(temp_path1):
 
-        abs_file_path = os.path.join(folder_path, file_name)
+        if file_name.endswith('.mp4'):
 
-        YOFLOW_dictionary = data_process.YOFLOW_main(video_path=abs_file_path, target_name=target)
+            temp_path2 = os.path.join(temp_path1, file_name)
+            temp_path2 = temp_path2.replace('\\', '/')
 
-        result_df = data_process.process_defaultdict(YOFLOW_dictionary)
+            target = f" iter: {iteration}"
 
-        main_df = pd.concat([main_df, result_df], ignore_index=True)
+            YOFLOW_dictionary = data_process.YOFLOW_main(video_path=temp_path2, target_name=temp_path2)
 
-        iteration += 1
+            result_df = data_process.process_defaultdict(YOFLOW_dictionary)
+
+            main_df = pd.concat([main_df, result_df], ignore_index=True)
+
+            iteration += 1
+            temp_path2 = temp_path1
+
+    csv_name = temp_path1.split('/')[-1]  + ".csv"
+    result_path = os.path.join(main_path, config['yoflow_target']['scenario1'], csv_name)
+
+    main_df.to_csv(result_path, index=False)
 
 
-main_df.to_csv(result_path, index=False)
+
 end_time = time.time()
+
+
+print(" ")
 print(f"Folder iteration needed: {round((end_time - start_time)/60, 2)} mins")
 print(f"saved in: {result_path}")
