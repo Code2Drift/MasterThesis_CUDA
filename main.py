@@ -30,18 +30,19 @@ config_path = os.path.join(main_path, 'config.yaml')
 with open(config_path, 'r') as file:
     config = yaml.safe_load(file)
 
-# main_path = config['main_path']['Work']
-main_path = config['main_path']['Home']
+main_path = config['main_path']['Work']
+# main_path = config['main_path']['Home']
 
 """
 Define source and target path
 """
 
 ## 1. Define Target Batch
-target_batch = "03BATCH_SC2_Marshall"
+target_batch = "06BATCH_SC2_Truck"
 
 full_target_batch = target_batch + "/"
-batch_path = os.path.join(config['yoflow_source_home']['scenario2'], full_target_batch)
+# batch_path = os.path.join(config['yoflow_source_home']['scenario2'], full_target_batch)
+batch_path = os.path.join(config['yoflow_source_ssd']['scenario2'], full_target_batch)
 
 
 

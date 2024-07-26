@@ -37,7 +37,8 @@ yoflow_target:
 
 yoflow_source_ssd:
   scenario1: "D:/BeamNG_dataset/Crash_8SC1/"
+  scenario2: "D:/BeamNG_dataset/Crash8_SC2/"
 
 yoflow_source_home:
   scenario1: "E:/Capture/BeamNG_dataset/BeamNG.drive/Crash_8/"
-  scenario2: "E:/Capture/BeamNG_dataset/BeamNG.drive/Crash8_SC2"
+  scenario2: "E:/Capture/BeamNG_dataset/BeamNG.drive/Crash8_SC2/"
