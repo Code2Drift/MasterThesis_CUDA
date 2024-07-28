@@ -38,11 +38,11 @@ Define source and target path
 """
 
 ## 1. Define Target Batch
-target_batch = "03BATCH_SC4_Marshall"
+target_batch = "06BATCH_SC5_Wagon"
 
 full_target_batch = target_batch + "/"
 # batch_path = os.path.join(config['yoflow_source_home']['scenario2'], full_target_batch)
-batch_path = os.path.join(config['yoflow_source_ssd']['scenario4'], full_target_batch)
+batch_path = os.path.join(config['yoflow_source_ssd']['scenario5'], full_target_batch)
 
 
 
@@ -77,7 +77,7 @@ for target_name in os.listdir(batch_path):
             temp_path2 = temp_path1
 
     csv_name = temp_path1.split('/')[-1]  + ".csv"
-    result_path = os.path.join(main_path, config['yoflow_target']['scenario4'], csv_name)
+    result_path = os.path.join(main_path, config['yoflow_target']['scenario5'], csv_name)
 
     main_df.to_csv(result_path, index=False)
 
