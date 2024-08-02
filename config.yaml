@@ -45,3 +45,9 @@ yoflow_source_ssd:
 yoflow_source_home:
   scenario1: "E:/Capture/BeamNG_dataset/BeamNG.drive/Crash_8/"
   scenario2: "E:/Capture/BeamNG_dataset/BeamNG.drive/Crash8_SC2/"
+
+additional_data:
+  sc4         : "E:/Capture/BeamNG_dataset/BeamNG.drive/Crash8_SC4/"
+  sc4_nearmiss: "additional_1"
+  sc5         : "E:/Capture/BeamNG_dataset/BeamNG.drive/Crash8_SC5/00_rest_data/"
+  target      : "dataset/additional_data/"
