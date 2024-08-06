@@ -1,3 +1,4 @@
+,index,bins_0_75,bins_1_75,bins_2_75,bins_3_75,bins_4_75,bins_5_75,bins_6_75,bins_7_75,Entry,Entry_point,Exit,Exit_point,path_label,outcome
 0,0,550.0,170.0,8.0,38.0,5.0,2.0,3.0,26.0,True,2,False,NaN,40-30,True
 1,1,117.0,32.0,16.0,61.0,1678.0,11.0,6.0,90.0,True,4,False,NaN,40-30,True
 2,2,603.0,204.0,6.0,29.0,9.0,2.0,3.0,28.0,True,2,False,NaN,42-32,True
